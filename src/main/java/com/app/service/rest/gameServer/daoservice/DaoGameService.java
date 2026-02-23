@@ -6,12 +6,10 @@ import java.util.List;
 
 public interface DaoGameService {
     void recordScore(Game game);
-    void retrieveScores();
-    void retrievePlayerScores(String playerName);
     List<Game> getAllGames();
     String getBestPlayer();
     int getBestScore();
-    int getPlayerBestScore();
-    int getPlayerAttemptsNumber();
+    int getPlayerBestScore(String playerName);
+    int getPlayerAttemptsNumber(String playerName);
     Long deleteByName(String name);
 }

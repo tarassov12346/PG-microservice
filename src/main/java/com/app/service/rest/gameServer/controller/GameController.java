@@ -18,12 +18,10 @@ public class GameController {
 
     @RequestMapping("/score")
     public String doAdd(@RequestParam(defaultValue = "NoName") String playerName) {
-        daoGameService.retrieveScores();
-        daoGameService.retrievePlayerScores(playerName);
         return "{\"bestplayer\":\"" + daoGameService.getBestPlayer() + "\"" + "," +
                 "\"bestscore\":\"" + daoGameService.getBestScore() + "\"" + "," +
-                "\"playerbestscore\":\"" + daoGameService.getPlayerBestScore() + "\"" + "," +
-                "\"playerAttemptsNumber\":\"" + daoGameService.getPlayerAttemptsNumber() + "\"}";
+                "\"playerbestscore\":\"" + daoGameService.getPlayerBestScore(playerName) + "\"" + "," +
+                "\"playerAttemptsNumber\":\"" + daoGameService.getPlayerAttemptsNumber(playerName) + "\"}";
     }
 
     @RequestMapping("/games")
@@ -40,6 +38,5 @@ public class GameController {
     @RequestMapping("/record")
     public void doRecord(@RequestBody Game game) {
         daoGameService.recordScore(game);
-        daoGameService.retrieveScores();
     }
 }
