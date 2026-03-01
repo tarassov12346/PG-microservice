@@ -9,7 +9,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
-import javax.transaction.Transactional;
+import jakarta.transaction.Transactional; // <-- ПРАВИЛЬНЫЙ ИМПОРТ
 import java.util.Comparator;
 import java.util.List;
 
