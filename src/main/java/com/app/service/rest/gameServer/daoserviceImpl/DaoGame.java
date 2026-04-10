@@ -16,10 +16,14 @@ import java.util.List;
 @Service
 public class DaoGame implements DaoGameService {
 
-    @Autowired
-    private GameRepository gameRepository;
+    private final GameRepository gameRepository;
 
+    // Spring Boot автоматически подставит репозиторий, @Autowired здесь не обязателен
+    public DaoGame(GameRepository gameRepository) {
+        this.gameRepository = gameRepository;
+    }
     @Override
+    @Transactional // Добавь сюда
     @Caching(evict = {
             @CacheEvict(value = "best_result", allEntries = true),
             // Добавляем суффиксы, чтобы Spring нашел именно те записи, которые мы создали

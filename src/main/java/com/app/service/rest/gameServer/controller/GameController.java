@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 
 @RestController
 public class GameController {
@@ -17,17 +19,31 @@ public class GameController {
     private DaoGameService daoGameService;
 
     @RequestMapping("/score")
-    public String doAdd(@RequestParam(defaultValue = "NoName") String playerName) {
-        return "{\"bestplayer\":\"" + daoGameService.getBestPlayer() + "\"" + "," +
-                "\"bestscore\":\"" + daoGameService.getBestScore() + "\"" + "," +
-                "\"playerbestscore\":\"" + daoGameService.getPlayerBestScore(playerName) + "\"" + "," +
-                "\"playerAttemptsNumber\":\"" + daoGameService.getPlayerAttemptsNumber(playerName) + "\"}";
+    public CompletableFuture<Map<String, Object>> doAdd(@RequestParam(defaultValue = "NoName") String playerName) {
+        // Запускаем все запросы параллельно в виртуальных потоках
+        var bestPlayerFuture = CompletableFuture.supplyAsync(() -> daoGameService.getBestPlayer());
+        var bestScoreFuture = CompletableFuture.supplyAsync(() -> daoGameService.getBestScore());
+        var playerBestFuture = CompletableFuture.supplyAsync(() -> daoGameService.getPlayerBestScore(playerName));
+        var playerAttemptsFuture = CompletableFuture.supplyAsync(() -> daoGameService.getPlayerAttemptsNumber(playerName));
+
+        // Ждем завершения всех и собираем результат в JSON (Map)
+        return CompletableFuture.allOf(bestPlayerFuture, bestScoreFuture, playerBestFuture, playerAttemptsFuture)
+                .thenApply(v -> Map.of(
+                        "bestplayer", bestPlayerFuture.join(),
+                        "bestscore", bestScoreFuture.join(),
+                        "playerbestscore", playerBestFuture.join(),
+                        "playerAttemptsNumber", playerAttemptsFuture.join()
+                ));
     }
 
     @RequestMapping("/games")
     public List<Game> getAllGames() {
-        daoGameService.getAllGames().forEach(game -> System.out.println(game.getPlayerName() + " " + game.getPlayerScore()));
-        return daoGameService.getAllGames();
+        List<Game> games = daoGameService.getAllGames();
+        // Используем параллельный стрим для логов, раз уж у нас много виртуальных потоков
+        games.parallelStream().forEach(game ->
+                System.out.println(Thread.currentThread() + " : " + game.getPlayerName() + " " + game.getPlayerScore())
+        );
+        return games;
     }
 
     @RequestMapping("/delete")
