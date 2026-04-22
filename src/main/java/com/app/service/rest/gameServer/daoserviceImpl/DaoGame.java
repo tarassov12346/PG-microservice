@@ -3,16 +3,16 @@ package com.app.service.rest.gameServer.daoserviceImpl;
 import com.app.service.rest.gameServer.daoservice.DaoGameService;
 import com.app.service.rest.gameServer.model.Game;
 import com.app.service.rest.gameServer.repository.GameRepository;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.transaction.Transactional; // <-- ПРАВИЛЬНЫЙ ИМПОРТ
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 
-import jakarta.transaction.Transactional; // <-- ПРАВИЛЬНЫЙ ИМПОРТ
-import java.util.Comparator;
 import java.util.List;
 
+@Slf4j // Добавляет переменную log
 @Service
 public class DaoGame implements DaoGameService {
 
@@ -22,6 +22,7 @@ public class DaoGame implements DaoGameService {
     public DaoGame(GameRepository gameRepository) {
         this.gameRepository = gameRepository;
     }
+
     @Override
     @Transactional // Добавь сюда
     @Caching(evict = {
@@ -32,30 +33,32 @@ public class DaoGame implements DaoGameService {
             @CacheEvict(value = "games", allEntries = true)
     })
     public void recordScore(Game game) {
+        // Лог в самом начале метода
+        log.info("===> Вход в метод recordScore для игрока: {}", game.getPlayerName());
         gameRepository.save(game);
+        log.info("<=== Метод recordScore завершен (save выполнен)");
     }
 
     @Override
-    @Cacheable(value = "games", key = "'allGames'")
+    @Cacheable(value = "games", key = "'topRecords'")
     public List<Game> getAllGames() {
-        return gameRepository.findAll();
+        // Вызываем наш кастомный Query
+        return gameRepository.findAllBestResultsNative();
     }
 
     @Override
     @Cacheable(value = "player_stats", key = "#playerName + '_best'")
     public int getPlayerBestScore(String playerName) {
-        // Логика прямо здесь, чтобы Spring перехватил вызов
-        return gameRepository.findAllByPlayerName(playerName).stream()
-                .mapToInt(Game::getPlayerScore)
-                .max()
-                .orElse(0);
+        // Вместо стрима — один SQL запрос, возвращающий только число
+        Integer maxScore = gameRepository.findMaxScoreByPlayerName(playerName);
+        return maxScore != null ? maxScore : 0;
     }
 
     @Override
     @Cacheable(value = "player_stats", key = "#playerName + '_attempts'")
     public int getPlayerAttemptsNumber(String playerName) {
-        // И здесь тоже вызываем репозиторий напрямую
-        return gameRepository.findAllByPlayerName(playerName).size();
+        // Вместо загрузки всех сущностей и вызова .size() — легкий COUNT в базе
+        return (int) gameRepository.countByPlayerName(playerName);
     }
 
     @Override
@@ -73,9 +76,8 @@ public class DaoGame implements DaoGameService {
     @Override
     @Cacheable(value = "best_result", key = "'player'")
     public String getBestPlayer() {
-        // Вся логика должна быть здесь, а не в другом методе этого же класса
-        return gameRepository.findAll().stream()
-                .max(Comparator.comparingInt(Game::getPlayerScore))
+        // База сама сортирует и отдает только ОДНУ нужную запись
+        return gameRepository.findFirstByOrderByPlayerScoreDesc()
                 .map(Game::getPlayerName)
                 .orElse("To be seen yet!");
     }
@@ -83,10 +85,8 @@ public class DaoGame implements DaoGameService {
     @Override
     @Cacheable(value = "best_result", key = "'score'")
     public int getBestScore() {
-        // Аналогично для счета
-        return gameRepository.findAll().stream()
-                .mapToInt(Game::getPlayerScore)
-                .max()
-                .orElse(0);
+        // База сама вычисляет число и возвращает 4 байта вместо всей таблицы
+        Integer maxScore = gameRepository.findMaxScore();
+        return maxScore != null ? maxScore : 0;
     }
 }
