@@ -7,6 +7,7 @@ import lombok.extern.slf4j.Slf4j;
 import net.devh.boot.grpc.server.service.GrpcService;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 @GrpcService
 @Slf4j
@@ -22,15 +23,31 @@ public class GameGrpcService extends GameIntegrationServiceGrpc.GameIntegrationS
         log.info("🛰️ ПОЛУЧЕН gRPC ЗАПРОС ОТ ТЕТРИСА ДЛЯ: {}", request.getPlayerName());
         String name = request.getPlayerName();
 
-        GameScoreResponse response = GameScoreResponse.newBuilder()
-                .setBestPlayer(daoGameService.getBestPlayer())
-                .setBestScore(daoGameService.getBestScore())
-                .setPlayerBestScore(daoGameService.getPlayerBestScore(name))
-                .setPlayerAttemptsNumber(daoGameService.getPlayerAttemptsNumber(name))
-                .build();
-        responseObserver.onNext(response); // Отправляем данные
-        responseObserver.onCompleted();    // Закрываем поток
+        try {
+            // Запускаем все 4 запроса параллельно на виртуальных потоках
+            var bestPlayerFuture = CompletableFuture.supplyAsync(daoGameService::getBestPlayer);
+            var bestScoreFuture = CompletableFuture.supplyAsync(daoGameService::getBestScore);
+            var playerBestFuture = CompletableFuture.supplyAsync(() -> daoGameService.getPlayerBestScore(name));
+            var playerAttemptsFuture = CompletableFuture.supplyAsync(() -> daoGameService.getPlayerAttemptsNumber(name));
+
+            // Ждем выполнения всех задач (блокировка виртуального потока бесплатна)
+            CompletableFuture.allOf(bestPlayerFuture, bestScoreFuture, playerBestFuture, playerAttemptsFuture).join();
+
+            GameScoreResponse response = GameScoreResponse.newBuilder()
+                    .setBestPlayer(bestPlayerFuture.join())
+                    .setBestScore(bestScoreFuture.join())
+                    .setPlayerBestScore(playerBestFuture.join())
+                    .setPlayerAttemptsNumber(playerAttemptsFuture.join())
+                    .build();
+
+            responseObserver.onNext(response);
+            responseObserver.onCompleted();
+        } catch (Exception e) {
+            log.error("❌ Ошибка при параллельном сборе статистики: {}", e.getMessage());
+            responseObserver.onError(e);
+        }
     }
+
 
     @Override
     public void getAllGames(Empty request, StreamObserver<AllGamesResponse> responseObserver) {

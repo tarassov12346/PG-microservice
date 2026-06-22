@@ -75,10 +75,10 @@
 			<artifactId>grpc-server-spring-boot-starter</artifactId>
 			<version>3.1.0.RELEASE</version>
 		</dependency>
+		<!-- Современная зависимость для Spring Boot 3 и Java 21 -->
 		<dependency>
-			<groupId>javax.annotation</groupId>
-			<artifactId>javax.annotation-api</artifactId>
-			<version>1.3.2</version>
+			<groupId>jakarta.annotation</groupId>
+			<artifactId>jakarta.annotation-api</artifactId>
 		</dependency>
 
 	</dependencies>
@@ -125,6 +125,31 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-antrun-plugin</artifactId>
+				<version>3.1.0</version>
+				<executions>
+					<execution>
+						<id>replace-javax-with-jakarta</id>
+						<phase>generate-sources</phase> <!-- Отработает сразу после генерации кода -->
+						<goals>
+							<goal>run</goal>
+						</goals>
+						<configuration>
+							<target>
+								<!-- Переписываем аннотацию в сгенерированных файлах -->
+								<replace token="@javax.annotation.Generated"
+								         value="@jakarta.annotation.Generated"
+								         dir="${project.build.directory}/generated-sources/protobuf">
+									<include name="**/*.java"/>
+								</replace>
+							</target>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
