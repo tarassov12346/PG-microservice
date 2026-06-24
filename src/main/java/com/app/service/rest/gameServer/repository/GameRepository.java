@@ -26,9 +26,11 @@ public interface GameRepository extends JpaRepository<Game,Long> {
     @Query("SELECT MAX(g.playerScore) FROM Game g WHERE g.playerName = :playerName")
     Integer findMaxScoreByPlayerName(@Param("playerName") String playerName);
 
+    // Добавили LIMIT 100 в конец запроса
     @Query(value = "SELECT DISTINCT ON (name) id, name, score " +
             "FROM games " +
-            "ORDER BY name, score DESC",
+            "ORDER BY name, score DESC " +
+            "LIMIT 100",
             nativeQuery = true)
     List<Game> findAllBestResultsNative();
     // Для попыток (агрегатная функция COUNT)
