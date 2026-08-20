@@ -1,22 +1,44 @@
-# Этап 1: Сборка
-FROM maven:3.9.6-eclipse-temurin-8 AS builder
+# ==============================================================================
+# Этап 1: Сборка gRPC и JAR-артефакта (Среда Ubuntu для совместимости с protoc)
+# ==============================================================================
+FROM maven:3.9.6-eclipse-temurin-21 AS builder
 WORKDIR /app
+
+# Копируем дескриптор сборки для кэширования зависимостей Maven
 COPY pom.xml .
-# Сначала загружаем зависимости (кеширование)
-RUN mvn dependency:go-offline
+RUN mvn dependency:go-offline -B
+
+# Копируем исходный код приложения
 COPY src ./src
-# Исправляем возможную опечатку в папке ресурсов, если она есть
+
+# СОХРАНЯЕМ КОСТЫЛЬ: Исправляем возможную опечатку с русской буквой "с" в названии папки ресурсов
 RUN if [ -d "src/main/resourсes" ]; then mv src/main/resourсes src/main/resources; fi
+
+# Генерируем gRPC-классы, подменяем javax на jakarta через Antrun и собираем проект
 RUN mvn clean package -DskipTests
 
-# Этап 2: Запуск
-FROM eclipse-temurin:8-jre
+# ==============================================================================
+# Этап 2: Высокопроизводительный запуск (Ultra-Low Latency Runtime)
+# ==============================================================================
+# Используем легковесный JRE 21 на базе Alpine Linux
+FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
-# Копируем JAR из предыдущего этапа
+
+# Создаем безопасного не-root пользователя
+RUN addgroup -S spring && adduser -S spring -G spring
+USER spring:spring
+
+# Копируем собранный JAR-файл из этапа сборки
 COPY --from=builder /app/target/PG-microservice-0.0.1-SNAPSHOT.jar app.jar
 
-# Порт из вашего game-server.properties
-EXPOSE 2222
+# ОТКРЫВАЕМ ПОРТЫ ИЗ PROPERTIES:
+# 2222 - HTTP сервер / Эврика
+# 6566 - gRPC сервер базы данных
+EXPOSE 2222 6566
 
-# Запуск с указанием имени конфига
-ENTRYPOINT ["java", "-jar", "app.jar", "--spring.config.name=game-server"]
+# Точка входа с поддержкой контейнеризации, ZGC и явным указанием твоего имени конфига
+ENTRYPOINT ["java", \
+            "-XX:+UseContainerSupport", \
+            "-XX:+UseZGC", \
+            "-jar", "app.jar", \
+            "--spring.config.name=game-server"]
